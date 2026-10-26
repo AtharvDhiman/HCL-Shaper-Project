@@ -1,0 +1,9 @@
+,value
+rows_total,31256.0
+anomalies_injected,938.0
+anomaly_pct,3.0
+detected,984.0
+precision,0.953
+recall,1.0
+false_positives_removed,46.0
+missed,0.0

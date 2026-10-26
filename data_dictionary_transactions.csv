@@ -1,0 +1,17 @@
+file,column_name,data_type,sample_value_1,sample_value_2,sample_value_3,nullable,description
+transactions.csv,customer_id,string,C00001,C00001,C00002,No,Anonymised customer key (C00001-C05000).
+transactions.csv,purchase_ts,datetime,2025-06-04 07:05:30,2025-08-22 16:44:05,2024-01-06 17:29:04,No,"Purchase timestamp, YYYY-MM-DD HH:MM:SS, between 2023-10-27 and 2026-10-26."
+transactions.csv,order_value,float,2500.09,492.67,1487.34,No,Value of one order in currency units (simulated Gamma-Gamma spend; anomalies are bulk-like or near-zero).
+transactions.csv,is_anomaly,bool,False,False,False,No,Ground-truth label: True for the ~3% of rows that were injected as anomalies (known only because the data are simulated).
+transactions.csv,anomaly_detected,bool,False,False,False,No,"Result of the label-free detection rule (near-zero order, over 5x the customer's median, or above Q3+7*IQR). Rows flagged True are removed before modelling."
+customer_clv_bgnbd.csv,customer_id,string,C00001,C00002,C00003,No,Anonymised customer key.
+customer_clv_bgnbd.csv,frequency,int,1.0,31.0,1.0,No,Repeat purchases (total purchases minus the first).
+customer_clv_bgnbd.csv,recency,float,79.0,1014.0,74.0,No,Days between a customer's first and last purchase (BG/NBD convention; not days since last purchase).
+customer_clv_bgnbd.csv,T,float,509.0,1024.0,761.0,No,Customer age in days: first purchase to 2026-10-26.
+customer_clv_bgnbd.csv,monetary_value,float,492.67,1513.499,2335.78,No,Average order value over repeat purchases (0 if none).
+customer_clv_bgnbd.csv,p_alive,float,0.309,0.987,0.189,No,BG/NBD probability the customer is still active (0-1).
+customer_clv_bgnbd.csv,exp_purchases_12m,float,0.292,10.142,0.126,No,Expected number of purchases in the next 365 days.
+customer_clv_bgnbd.csv,exp_order_value,float,526.285,1515.847,2445.34,No,Gamma-Gamma expected order value (population mean of repeat buyers if the customer has no repeat purchase).
+customer_clv_bgnbd.csv,clv_12m,float,139.867,13976.693,280.657,No,12-month CLV = expected purchases x expected order value / 1.10 (10% annual discount).
+customer_clv_bgnbd.csv,tier,category,Low (bottom 50%),Top 5%,Low (bottom 50%),No,"CLV tier: Low (bottom 50%), Medium, High, Top 5%."
+customer_clv_bgnbd.csv,recommended_action,category,Standard nurture,VIP retention,Lapsed: low-cost reactivation,No,"Retention action: VIP retention, Loyalty / cross-sell, Standard nurture, One-time buyer nudge, or Lapsed reactivation (P(alive) < 0.3)."

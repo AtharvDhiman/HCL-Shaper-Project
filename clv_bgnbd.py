@@ -35,9 +35,36 @@ for i in range(N):
         rows.append((f"C{i+1:05d}", START + pd.to_timedelta(tm, "D"), s))
 tx = pd.DataFrame(rows, columns=["customer_id", "purchase_ts", "order_value"])
 tx["purchase_ts"] = tx.purchase_ts.dt.floor("s")
-tx.sort_values(["customer_id", "purchase_ts"]).to_csv("transactions.csv", index=False, date_format="%Y-%m-%d %H:%M:%S")
+tx["is_anomaly"] = False
+base_n = len(tx)
+
+# ---------- 1b. inject labelled anomalies (~3% of final rows), then detect and remove them ----------
+rng2 = np.random.default_rng(7)                       # separate stream: the clean simulation above is unchanged
+n_anom = int(round(base_n * 0.03 / 0.97))
+first = tx.groupby("customer_id").purchase_ts.min()
+cust = rng2.choice(first.index.values, n_anom)
+f0 = first.reindex(cust).to_numpy(dtype="datetime64[s]")
+span = (np.datetime64(END, "s") - f0).astype(float)
+ts = f0 + (rng2.random(n_anom) * span).astype("timedelta64[s]")
+high = rng2.random(n_anom) < 0.7                      # 70% bulk/fraud-like orders, 30% test/refund-like near-zero orders
+val = np.where(high, rng2.uniform(8, 15, n_anom) * tx.order_value.mean(), rng2.uniform(0.5, 9.0, n_anom)).round(2)
+anom = pd.DataFrame({"customer_id": cust, "purchase_ts": pd.to_datetime(ts).floor("s"), "order_value": val, "is_anomaly": True})
+tx = pd.concat([tx, anom], ignore_index=True).sort_values(["customer_id", "purchase_ts"]).reset_index(drop=True)
+# detection uses no labels: (1) near-zero orders, (2) an order far above the customer's own median (customers with 3+ orders),
+# (3) an order above a global Tukey fence (Q3 + 7 x IQR) for customers with too little history
+cmed = tx.groupby("customer_id").order_value.transform("median"); cn = tx.groupby("customer_id").order_value.transform("size")
+q1, q3 = tx.order_value.quantile([.25, .75])
+tx["anomaly_detected"] = (tx.order_value < 10) | ((cn >= 3) & (tx.order_value > 5 * cmed)) | (tx.order_value > q3 + 7 * (q3 - q1))
+tp = int((tx.anomaly_detected & tx.is_anomaly).sum()); fp = int((tx.anomaly_detected & ~tx.is_anomaly).sum()); fn = int((~tx.anomaly_detected & tx.is_anomaly).sum())
+anom_metrics = {"rows_total": len(tx), "anomalies_injected": int(tx.is_anomaly.sum()), "anomaly_pct": round(100 * tx.is_anomaly.mean(), 2),
+                "detected": int(tx.anomaly_detected.sum()), "precision": round(tp / max(tp + fp, 1), 3), "recall": round(tp / max(tp + fn, 1), 3),
+                "false_positives_removed": fp, "missed": fn}
+pd.Series(anom_metrics).to_csv("anomaly_detection_metrics.csv", header=["value"])
+tx.to_csv("transactions.csv", index=False, date_format="%Y-%m-%d %H:%M:%S")
+tx = tx[~tx.anomaly_detected].drop(columns=["is_anomaly", "anomaly_detected"]).reset_index(drop=True)   # cleaned data used for modelling
 tx["purchase_date"] = tx.purchase_ts.dt.normalize()
-print("transactions:", len(tx), "customers:", tx.customer_id.nunique(), "mean order:", round(tx.order_value.mean(), 1))
+print("anomalies:", anom_metrics)
+print("transactions (clean):", len(tx), "customers:", tx.customer_id.nunique(), "mean order:", round(tx.order_value.mean(), 1))
 
 # ---------- 2. calibration / holdout fit ----------
 cal = calibration_and_holdout_data(tx, "customer_id", "purchase_date", calibration_period_end=CAL_END,
@@ -127,3 +154,21 @@ print("\nTRUE params:", TRUE); print("BG/NBD fit:", params); print("Gamma-Gamma:
 print("\n", cmp_.to_string(index=False)); print("\n", summ); print("\nshare:", share)
 print("per-customer tx stats:", tx.groupby("customer_id").size().describe().round(2).to_dict())
 pd.Series({**bg_metrics, **{f"gg_{k}": v for k, v in gg.items()}, **share, "true_params": str(TRUE), "fit_params": str(params)}).to_csv("bgnbd_metrics.csv", header=["value"])
+
+# ---------- experiment tracking (MLflow, local sqlite mlflow.db) ----------
+try:
+    import mlflow
+    mlflow.set_tracking_uri("sqlite:///mlflow.db"); mlflow.set_experiment("clv_bgnbd_transactions")
+    with mlflow.start_run(run_name="BG/NBD + Gamma-Gamma"):
+        mlflow.log_params({**{f"bgnbd_{k}": v for k, v in params.items()}, "penalizer": 0.001, "calibration_end": str(CAL_END.date()),
+                           "holdout_days": 365, "discount_rate": 0.10, "anomaly_rule": "near-zero | 5x customer median | Q3+7*IQR"})
+        mlflow.log_metrics({"holdout_total_error_pct": float(bg_metrics["total_error_pct"]), "holdout_corr": float(bg_metrics["corr"]),
+                            "holdout_MAE_per_customer": float(bg_metrics["MAE_per_customer"]), "gg_order_corr_freq": float(indep),
+                            "R2_spend": float(cmp_.loc[1, "R2"]), "MAE_spend": float(cmp_.loc[1, "MAE"]), "top10_capture": float(cmp_.loc[1, "top10_capture"]),
+                            "anomaly_precision": anom_metrics["precision"], "anomaly_recall": anom_metrics["recall"]})
+        for f_ in ["bgnbd_vs_ml.csv", "anomaly_detection_metrics.csv", "bgnbd_action_summary.csv", "figures/07_bgnbd_calibration.png"]: mlflow.log_artifact(f_)
+    with mlflow.start_run(run_name="Gradient boosting on RFM"):
+        mlflow.log_params({"n_estimators": 200, "max_depth": 3, "learning_rate": 0.05, "train_split": 0.7})
+        mlflow.log_metrics({"R2_spend": float(cmp_.loc[2, "R2"]), "MAE_spend": float(cmp_.loc[2, "MAE"]), "top10_capture": float(cmp_.loc[2, "top10_capture"])})
+except ImportError:
+    print("mlflow not installed; skipping tracking")

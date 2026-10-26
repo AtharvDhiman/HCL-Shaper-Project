@@ -105,3 +105,15 @@ d.drop(columns=["log_clv"]).to_csv("dataset_clean.csv", index=False)
 act.to_csv("segment_summary.csv")
 print(pd.Series(audit).to_string()); print("\nRaw segment label vs behaviour:\n", seg_gap)
 print("\n", res.to_string(index=False)); print("\n", imp.round(3).to_string()); print("\n", act)
+
+# ---- experiment tracking (MLflow, local sqlite mlflow.db) ----
+try:
+    import mlflow
+    mlflow.set_tracking_uri("sqlite:///mlflow.db"); mlflow.set_experiment("clv_500_customer_regression")
+    for _, r_ in res.iterrows():
+        with mlflow.start_run(run_name=r_["model"]):
+            mlflow.log_params({"model": r_["model"], "features": ",".join(X.columns), "cv": "5-fold", "target": "log1p(clv_predicted)"})
+            mlflow.log_metrics({k: float(r_[k]) for k in ["R2_log", "R2_currency", "MAE", "RMSE"]})
+            mlflow.log_artifact("model_metrics.csv"); mlflow.log_artifact("figures/04_actual_vs_predicted.png")
+except ImportError:
+    print("mlflow not installed; skipping tracking")
