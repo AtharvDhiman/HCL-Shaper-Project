@@ -1,0 +1,7 @@
+,value
+rows,500.0
+missing_cells,0.0
+duplicate_ids,0.0
+total_spend == frequency*recency_days (%),100.0
+last_purchase_date after as-of date,39.0
+recency_days inconsistent with date (>30d),467.0

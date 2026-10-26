@@ -1,0 +1,9 @@
+column_name,data_type,sample_value_1,sample_value_2,sample_value_3,nullable,description
+customer_id,string,C00001,C00002,C00003,No,Anonymised unique customer key (C00001-C00500); no PII.
+frequency,int,25,3,28,No,Number of purchases made by the customer (1-50).
+recency_days,int,524,495,19,No,Days since the customer's most recent purchase (1-1091). Higher = less recently active.
+avg_order_value,float,2918.85,2061.08,1776.6,No,"Average value of one order, in currency units."
+total_spend,int,13100,1485,532,No,"Lifetime spend. In this file it equals frequency x recency_days exactly (synthetic artefact), so it is excluded from model inputs."
+clv_predicted,float,18240.39,1803.97,796.73,No,Provided CLV estimate; used as the regression target.
+last_purchase_date,date,2024-04-05,2024-12-23,2024-03-30,No,Date of most recent purchase (YYYY-MM-DD). 39 rows fall after 2026-10-26 and do not match recency_days.
+segment,categorical,Churned,Churned,Occasional,No,"Provided label: Premium/Regular/Occasional/Churned. Shows no relationship with behaviour in the data, so replaced by RFM-based value_tier."

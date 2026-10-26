@@ -1,0 +1,4 @@
+model,R2_log,R2_currency,MAE,RMSE
+Ridge,0.746,0.454,5338.342,9818.265
+GradientBoosting,0.947,0.814,3442.69,5735.971
+Mean baseline,0.0,0.0,10350.491,13285.779
