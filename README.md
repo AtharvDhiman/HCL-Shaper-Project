@@ -29,4 +29,4 @@ python clv_pipeline.py
 python clv_bgnbd.py
 ```
 
-Deliverables: `CLV_Project_Report.docx`, `Project_Synopsis_CLV_Prediction.docx`, `data_dictionary.csv` and `data_dictionary_transactions.csv`, `DEMO_SCRIPT.md`, `figures/`.
+Deliverables: `CLV_Project_Report.docx`, `Project_Synopsis_AtharvDhiman_2300320130071.docx`, `data_dictionary.csv` and `data_dictionary_transactions.csv`, `DEMO_SCRIPT.md`, `figures/`.
